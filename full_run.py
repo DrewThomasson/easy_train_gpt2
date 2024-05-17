@@ -1,7 +1,7 @@
 import sys
 import os
 import pandas as pd
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLineEdit, QProgressBar, QAction, QSlider, QLabel, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QLineEdit, QProgressBar, QAction, QSlider, QLabel, QMessageBox, QTextEdit
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QIcon
 from tqdm import tqdm
@@ -49,11 +49,6 @@ class Worker(QThread):
         self.running = False
 
 class TrainWorker(QThread):
-    update_progress = pyqtSignal(int)
-
-    def __init__(self):
-        super().__init__()
-
     def run(self):
         # Parameters
         dataset_path = 'filled_qna_dataset.csv'
@@ -115,15 +110,17 @@ class TrainWorker(QThread):
                 print(os.path.join(root, file))
 
 class TestWorker(QThread):
-    def __init__(self, prompt):
+    update_text = pyqtSignal(str)
+
+    def __init__(self, model_path, prompt):
         super().__init__()
         self.prompt = prompt
-        self.model_path = "output"  # Replace with your model directory path
+        self.model_path = model_path
 
     def run(self):
         model, tokenizer = self.load_model(self.model_path)
         response = self.generate_response(model, tokenizer, self.prompt)
-        print("Model:", response)
+        self.update_text.emit(f'You: {self.prompt}\nModel: {response}\n')
 
     def load_model(self, model_path):
         # Load the fine-tuned model and tokenizer
@@ -144,6 +141,8 @@ class AppWindow(QMainWindow):
         self.worker = None
         self.train_worker = None
         self.test_worker = None
+        self.model = None
+        self.tokenizer = None
         self.dark_mode = False
         self.init_ui()
         self.init_menu()
@@ -176,7 +175,7 @@ class AppWindow(QMainWindow):
         layout.addWidget(self.train_button)
 
         self.test_button = QPushButton('Test Model')
-        self.test_button.clicked.connect(self.test_model)
+        self.test_button.clicked.connect(self.setup_test_model)
         layout.addWidget(self.test_button)
 
         self.pause_button = QPushButton('Pause')
@@ -190,6 +189,17 @@ class AppWindow(QMainWindow):
 
         self.progress_bar = QProgressBar(self)
         layout.addWidget(self.progress_bar)
+
+        self.chat_display = QTextEdit(self)
+        self.chat_display.setReadOnly(True)
+        self.chat_display.setVisible(False)
+        layout.addWidget(self.chat_display)
+
+        self.chat_input = QLineEdit(self)
+        self.chat_input.setPlaceholderText('Enter your prompt here...')
+        self.chat_input.setVisible(False)
+        self.chat_input.returnPressed.connect(self.send_chat)
+        layout.addWidget(self.chat_input)
 
         central_widget = QWidget()
         central_widget.setLayout(layout)
@@ -207,7 +217,7 @@ class AppWindow(QMainWindow):
             self.dark_mode = False
         else:
             self.setStyleSheet("""
-                QMainWindow, QWidget, QPushButton, QLineEdit, QProgressBar, QToolBar {
+                QMainWindow, QWidget, QPushButton, QLineEdit, QProgressBar, QToolBar, QTextEdit {
                     background-color: #333;
                     color: #eee;
                     border: 1px solid #555;
@@ -217,6 +227,9 @@ class AppWindow(QMainWindow):
                 }
                 QProgressBar::chunk {
                     background-color: #44a;
+                }
+                QTextEdit {
+                    border: 1px solid #555;
                 }
             """)
             self.dark_mode = True
@@ -255,12 +268,27 @@ class AppWindow(QMainWindow):
 
     def on_training_complete(self):
         QMessageBox.information(self, 'Training Complete', 'The model has been trained successfully.')
+        self.load_model_and_tokenizer()
 
-    def test_model(self):
-        prompt, ok = QInputDialog.getText(self, 'Test Model', 'Enter your prompt:')
-        if ok:
-            self.test_worker = TestWorker(prompt)
+    def load_model_and_tokenizer(self):
+        self.model = GPT2LMHeadModel.from_pretrained('output')
+        self.tokenizer = GPT2TokenizerFast.from_pretrained('output')
+
+    def setup_test_model(self):
+        self.chat_display.setVisible(True)
+        self.chat_input.setVisible(True)
+        self.chat_input.setFocus()
+
+    def send_chat(self):
+        prompt = self.chat_input.text()
+        if prompt:
+            self.chat_input.clear()
+            self.test_worker = TestWorker('output', prompt)
+            self.test_worker.update_text.connect(self.update_chat_display)
             self.test_worker.start()
+
+    def update_chat_display(self, text):
+        self.chat_display.append(text)
 
     def closeEvent(self, event):
         if self.worker and self.worker.isRunning():
