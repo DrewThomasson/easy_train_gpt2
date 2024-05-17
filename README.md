@@ -53,3 +53,4 @@ example system prompt:
 make sure you have thisese pips installed before taht and ollama installed with llama3 pulled already
 `pip install -U PyQt5 pandas tqdm datasets transformers accelerate ollama
 `
+![image](https://github.com/DrewThomasson/easy_train_gpt2/assets/126999465/722139f0-9fe4-4e94-9cdd-a1fe9219bfc2)
