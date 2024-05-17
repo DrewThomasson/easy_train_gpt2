@@ -46,3 +46,10 @@ example system prompt:
 
 # To test the now trained gpt2 model run 
 `test_trained_gpt2.py`
+
+
+# for the full run gui
+`python full_run.py`
+make sure you have thisese pips installed before taht and ollama installed with llama3 pulled already
+`pip install -U PyQt5 pandas tqdm datasets transformers accelerate ollama
+`
