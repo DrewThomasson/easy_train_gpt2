@@ -40,7 +40,8 @@ example system prompt:
 -run `python train_gpt2`
 
 # requirmed pip installs 
-`pip install datasets transformers torch
+`pip install datasets transformers torch `
+`pip install accelerate -U
 `
 
 # To test the now trained gpt2 model run 
