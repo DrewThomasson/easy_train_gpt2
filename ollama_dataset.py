@@ -85,27 +85,7 @@ class AppWindow(QMainWindow):
         layout = QVBoxLayout()
 
         self.model_select = QComboBox(self)
-        self.model_select.addItems([
-            "llama3", "phi3", "wizardlm2", "mistral", "gemma", "mixtral", "llama2",
-            "codegemma", "command-r", "command-r-plus", "llava", "dbrx", "codellama",
-            "qwen", "dolphin-mixtral", "llama2-uncensored", "deepseek-coder",
-            "mistral-openorca", "nomic-embed-text", "dolphin-mistral", "phi",
-            "orca-mini", "nous-hermes2", "zephyr", "llama2-chinese",
-            "wizard-vicuna-uncensored", "starcoder2", "vicuna", "tinyllama",
-            "openhermes", "openchat", "starcoder", "dolphin-llama3", "yi",
-            "tinydolphin", "wizardcoder", "stable-code", "mxbai-embed-large",
-            "neural-chat", "phind-codellama", "wizard-math", "starling-lm",
-            "falcon", "dolphincoder", "orca2", "nous-hermes", "stablelm2",
-            "sqlcoder", "dolphin-phi", "solar", "deepseek-llm", "yarn-llama2",
-            "codeqwen", "bakllava", "samantha-mistral", "all-minilm",
-            "medllama2", "llama3-gradient", "wizardlm-uncensored", "nous-hermes2-mixtral",
-            "xwinlm", "stable-beluga", "codeup", "wizardlm", "yarn-mistral",
-            "everythinglm", "meditron", "llama-pro", "magicoder", "stablelm-zephyr",
-            "nexusraven", "codebooga", "mistrallite", "wizard-vicuna", "llama3-chatqa",
-            "snowflake-arctic-embed", "goliath", "open-orca-platypus2", "llava-llama3",
-            "moondream", "notux", "megadolphin", "duckdb-nsql", "notus", "alfred",
-            "llava-phi3", "falcon2"
-        ])
+        self.load_ollama_models()
         layout.addWidget(self.model_select)
 
         self.prompt_input = QLineEdit(self)
@@ -141,6 +121,44 @@ class AppWindow(QMainWindow):
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+
+    def load_ollama_models(self):
+        self.model_select.clear()
+        try:
+            response = ollama.list()
+        except Exception as error:
+            self.model_select.addItem("No Ollama models available")
+            self.model_select.setEnabled(False)
+            QMessageBox.warning(
+                self,
+                "Ollama Unavailable",
+                f"Could not load local Ollama models. Make sure Ollama is running.\n\nDetails: {error}"
+            )
+            return
+
+        models = response.get('models', []) if isinstance(response, dict) else getattr(response, 'models', [])
+        model_names = []
+        for model in models:
+            model_name = None
+            if isinstance(model, dict):
+                model_name = model.get('model') or model.get('name')
+            else:
+                model_name = getattr(model, 'model', None) or getattr(model, 'name', None)
+            if model_name:
+                model_names.append(model_name)
+
+        if not model_names:
+            self.model_select.addItem("No Ollama models available")
+            self.model_select.setEnabled(False)
+            QMessageBox.warning(
+                self,
+                "No Models Found",
+                "No local Ollama models were found. Pull a model first (for example: ollama pull llama3.2)."
+            )
+            return
+
+        self.model_select.addItems(model_names)
+        self.model_select.setEnabled(True)
 
     def init_menu(self):
         toggle_theme_action = QAction(QIcon(), 'Toggle Theme', self)
@@ -255,6 +273,9 @@ class AppWindow(QMainWindow):
         model_name = self.model_select.currentText()
         if not system_prompt or num_rows == 0:
             self.show_alert("Please provide a system prompt and select the number of rows to fill.")
+            return
+        if not self.model_select.isEnabled():
+            self.show_alert("No local Ollama model is available. Start Ollama and pull a model first.")
             return
         self.worker = Worker(self.df, system_prompt, num_rows, model_name)
         self.worker.update_progress.connect(self.update_progress_bar)
